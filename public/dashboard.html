@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Tracking System</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="dashboard-header">
+            <h1>📊 Tracking Dashboard</h1>
+            <button onclick="logout()" class="btn btn-secondary">Logout</button>
+        </header>
+        
+        <div class="dashboard-content">
+            <div class="upload-section">
+                <h2>Create New Tracking Record</h2>
+                <form id="trackingForm" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label for="phone_number">Phone Number</label>
+                        <input type="tel" id="phone_number" name="phone_number" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="photo">Upload Photo</label>
+                        <input type="file" id="photo" name="photo" accept="image/*">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="location">Location</label>
+                        <input type="text" id="location" name="location">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="description">Description</label>
+                        <textarea id="description" name="description" rows="3"></textarea>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Create Record</button>
+                </form>
+            </div>
+            
+            <div class="search-section">
+                <h2>Search Records</h2>
+                <div class="search-bar">
+                    <input type="tel" id="searchPhone" placeholder="Search by phone number">
+                    <button onclick="searchRecords()" class="btn btn-primary">Search</button>
+                </div>
+            </div>
+            
+            <div class="records-section">
+                <h2>Recent Records</h2>
+                <div id="recordsList"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token) window.location.href = '/login';
+        
+        loadRecords();
+        
+        document.getElementById('trackingForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            formData.append('phone_number', document.getElementById('phone_number').value);
+            formData.append('location', document.getElementById('location').value);
+            formData.append('description', document.getElementById('description').value);
+            
+            const photoFile = document.getElementById('photo').files[0];
+            if (photoFile) formData.append('photo', photoFile);
+            
+            try {
+                const response = await fetch('/api/tracking/create', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Record created successfully!');
+                    document.getElementById('trackingForm').reset();
+                    loadRecords();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error creating record: ' + error.message);
+            }
+        });
+        
+        async function loadRecords() {
+            try {
+                const response = await fetch('/api/tracking/records', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const data = await response.json();
+                if (data.success) displayRecords(data.data);
+            } catch (error) {
+                console.error('Error loading records:', error);
+            }
+        }
+        
+        async function searchRecords() {
+            const phone = document.getElementById('searchPhone').value;
+            if (!phone) return;
+            
+            try {
+                const response = await fetch(`/api/tracking/search/${phone}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const data = await response.json();
+                if (data.success) displayRecords(data.data);
+            } catch (error) {
+                console.error('Error searching records:', error);
+            }
+        }
+        
+        function displayRecords(records) {
+            const recordsList = document.getElementById('recordsList');
+            
+            if (records.length === 0) {
+                recordsList.innerHTML = '<p>No records found</p>';
+                return;
+            }
+            
+            recordsList.innerHTML = records.map(record => `
+                <div class="record-card">
+                    ${record.photo_url ? `<img src="${record.photo_url}" alt="Photo">` : ''}
+                    <div class="record-info">
+                        <p><strong>Phone:</strong> ${record.phone_number}</p>
+                        <p><strong>Location:</strong> ${record.location || 'N/A'}</p>
+                        <p><strong>Description:</strong> ${record.description || 'N/A'}</p>
+                        <p><strong>Status:</strong> <span class="status-${record.status}">${record.status}</span></p>
+                        <p><strong>Created:</strong> ${new Date(record.created_at).toLocaleString()}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+        }
+    </script>
+</body>
+</html>
